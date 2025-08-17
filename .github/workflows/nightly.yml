@@ -1,0 +1,44 @@
+name: nightly-crawl
+
+on:
+  schedule:
+    - cron: "20 12 * * *"   # chạy mỗi ngày 12:20 UTC ~ 19:20 VN
+  workflow_dispatch: {}     # cho phép bấm chạy tay
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # cho phép commit bằng GITHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Run crawler & build CSV
+        run: |
+          python - <<'PY'
+          import os, json
+          from crawler import crawl
+          from bayes import counts_from_days, dirichlet_smoothing, rank
+          import pandas as pd
+
+          day2pairs = crawl("60")
+          df, N, days = counts_from_days(day2pairs)
+          df = dirichlet_smoothing(df, N, alpha0=200.0)
+          ranked = rank(df)
+          os.makedirs("data", exist_ok=True)
+          df.to_csv("data/xsmb_full.csv", index=False, encoding="utf-8-sig")
+          ranked.to_csv("data/xsmb_ranked.csv", index=False, encoding="utf-8-sig")
+          # lưu meta
+          with open("data/meta.json","w",encoding="utf-8") as f:
+            json.dump({"days":days, "observations":int(N)}, f, ensure_ascii=False)
+          PY
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/*
+          git commit -m "nightly: update xsmb datasets" || echo "no changes"
+          git push
