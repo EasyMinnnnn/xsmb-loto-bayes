@@ -106,7 +106,7 @@ with st.sidebar:
 if crawl_btn:
     with st.spinner("Đang crawl & phân tích…"):
         # 1) Thu thập & đếm
-        day2pairs = crawl(window)
+        day2pairs = crawl(window, max_days=int(window))
         df, N, days = counts_from_days(day2pairs)
 
         # 2) Bayes smoothing (posterior dài hạn theo cửa sổ đã chọn)
